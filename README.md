@@ -11,10 +11,10 @@
   - Número de fragmentos
 
     ## Estrutura do Projeto
-      main.c          # Programa principal
-      mymemory.c      # Implementação do alocador
-      mymemory.h      # Definição das estruturas e funções
-      Makefile        # Script de compilação
+     - main.c          # Programa principal
+     - mymemory.c      # Implementação do alocador
+     - mymemory.h      # Definição das estruturas e funções
+     - Makefile        # Script de compilação
 
   ## Como Compilar e Executar
 

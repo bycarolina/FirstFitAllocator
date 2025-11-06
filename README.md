@@ -1,4 +1,3 @@
-README.md: |
   # T2 - Gerenciador de Memória em C (FirstFitAllocator)
 
   ## Descrição

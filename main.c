@@ -1,71 +1,84 @@
-  #include <stdio.h>
-  #include <stdlib.h>
-  #include <time.h>
-  #include "mymemory.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include "mymemory.h"
 
-  static void shuffle(size_t *a, size_t n) {
-      for (size_t i = 0; i + 1 < n; i++) {
-          size_t j = i + (size_t)(rand() % (int)(n - i));
-          size_t t = a[i]; a[i] = a[j]; a[j] = t;
-      }
-  }
+static void mostrar_estado(mymemory_t *mem, const char *etapa) {
+    printf("\n-- %s --\n", etapa);
+    mymemory_display(mem);
+    mymemory_stats(mem);
+}
 
-  int main(void) {
-      srand((unsigned)time(NULL));
+static void titulo(const char *texto) {
+    printf("\n%s\n", texto);
+}
 
-      /* 1) inicia pool */
-      size_t POOL = 8000; /* 8 KB */
-      mymemory_t *mem = mymemory_init(POOL);
-      if (!mem) { fprintf(stderr, "Falha ao inicializar a pool.\n"); return 1; }
+int main(void) {
+    mymemory_t *mem = NULL;
 
-      /* 2) gera 50 tamanhos variados */
-      size_t base_sizes[] = {10,25,50,100,250,500,1000,200,40,80};
-      size_t N = 50;
-      size_t sizes[50];
-      for (size_t i = 0; i < N; i++) sizes[i] = base_sizes[i % (sizeof(base_sizes)/sizeof(base_sizes[0]))];
+    titulo("INICIALIZACAO");
+    mem = mymemory_init(1024);
+    if (!mem) { fprintf(stderr, "Falha ao criar pool de 1024 bytes.\n"); return 1; }
+    mostrar_estado(mem, "Pool criada (vazia)");
 
-      /* 3) embaralha ordem */
-      shuffle(sizes, N);
+    titulo("CENARIO 1");
+    mymemory_release(mem);
+    mem = mymemory_init(1024);
 
-      /* 4) aloca o que couber */
-      void *ptrs[50] = {0};
-      size_t ok = 0;
-      for (size_t i = 0; i < N; i++) {
-          void *p = mymemory_malloc(mem, sizes[i]);
-          ptrs[i] = p;
-          if (p) ok++;
-      }
+    void *a = mymemory_malloc(mem, 512);
+    void *b = mymemory_malloc(mem, 512);
+    printf("Alocadas duas areas de 512 bytes: %p e %p\n", a, b);
+    mostrar_estado(mem, "Após alocar 2 blocos de 512B");
 
-      printf("\nApós alocar (tentativa de %zu blocos; %zu sucederam):\n", N, ok);
-      mymemory_display(mem);
-      mymemory_stats(mem);
+    mymemory_free(mem, a);
+    mostrar_estado(mem, "Após liberar o primeiro bloco");
 
-      /* 5) libera metade (índices pares) */
-      for (size_t i = 0; i < N; i += 2) {
-          if (ptrs[i]) mymemory_free(mem, ptrs[i]);
-      }
+    void *blocos128[4];
+    for (int i = 0; i < 4; i++) blocos128[i] = mymemory_malloc(mem, 128);
+    printf("Alocados quatro blocos de 128 bytes.\n");
+    mostrar_estado(mem, "Após alocar 4 blocos de 128B");
 
-      printf("\nApós liberar metade (índices pares):\n");
-      mymemory_display(mem);
-      mymemory_stats(mem);
+    for (int i = 0; i < 4; i++) {
+        if (blocos128[i]) mymemory_free(mem, blocos128[i]);
+    }
+    mostrar_estado(mem, "Após liberar os 4 blocos de 128B (limpeza do Cenario 1)");
 
-      /* 6) novas alocações (First Fit) */
-      size_t extra_sizes[] = {60,120,240,480,30,90,300};
-      void *extras[sizeof(extra_sizes)/sizeof(extra_sizes[0])] = {0};
-      printf("\nTentando novas alocações (extras):\n");
-      for (size_t i = 0; i < sizeof(extra_sizes)/sizeof(extra_sizes[0]); i++) {
-          extras[i] = mymemory_malloc(mem, extra_sizes[i]);
-          if (extras[i])
-              printf("  extra[%zu] alocado em %p (%zu bytes)\n", i, extras[i], extra_sizes[i]);
-          else
-              printf("  extra[%zu] falhou (%zu bytes)\n", i, extra_sizes[i]);
-      }
+    titulo("CENARIO 2");
+    mymemory_release(mem);
+    mem = mymemory_init(1024);
 
-      printf("\nApós novas alocações em buracos:\n");
-      mymemory_display(mem);
-      mymemory_stats(mem);
+    void *c2[8];
+    for (int i = 0; i < 8; i++) c2[i] = mymemory_malloc(mem, 128);
+    printf("Criados 8 blocos de 128 bytes.\n");
+    mostrar_estado(mem, "Após preencher com 8 blocos");
 
-      /* 7) limpa */
-      mymemory_release(mem);
-      return 0;
-  }
+    for (int i = 2; i <= 5; i++) mymemory_free(mem, c2[i]);
+    printf("Liberados os blocos centrais (3, 4, 5 e 6).\n");
+    mostrar_estado(mem, "Após liberar blocos centrais");
+
+    void *novo512 = mymemory_malloc(mem, 512);
+    printf("Nova alocacao de 512 bytes em %p\n", novo512);
+    mostrar_estado(mem, "Após nova alocacao de 512B");
+
+    titulo("CENARIO 3");
+    mymemory_release(mem);
+    mem = mymemory_init(1024);
+
+    void *c3[64];
+    for (int i = 0; i < 64; i++) c3[i] = mymemory_malloc(mem, 16);
+    printf("Preenchido com 64 blocos de 16 bytes.\n");
+    mostrar_estado(mem, "Após preencher 64x16");
+
+    for (int i = 0; i < 64; i += 2) mymemory_free(mem, c3[i]);
+    printf("Liberados blocos alternados.\n");
+    mostrar_estado(mem, "Após liberar blocos alternados");
+
+    void *extra = mymemory_malloc(mem, 32);
+    printf("Nova alocacao de 32 bytes em %p\n", extra);
+    mostrar_estado(mem, "Após alocar 32B");
+
+    titulo("FINAL");
+    mostrar_estado(mem, "Estado final antes da limpeza");
+
+    mymemory_release(mem);
+    return 0;
+}
